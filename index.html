@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AutoML Trainer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f8f7f4;
+    --surface: #ffffff;
+    --border: #e2e0da;
+    --border-strong: #c8c5bc;
+    --text: #1a1917;
+    --text-2: #6b6860;
+    --text-3: #a09d96;
+    --blue: #185FA5;
+    --blue-light: #e6f1fb;
+    --green: #0F6E56;
+    --green-light: #e1f5ee;
+    --amber: #854F0B;
+    --amber-light: #faeeda;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.6; min-height: 100vh; }
+  .app { max-width: 860px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+  header { margin-bottom: 2.5rem; }
+  header h1 { font-size: 28px; font-weight: 300; letter-spacing: -0.5px; }
+  header h1 span { font-weight: 500; }
+  header p { font-size: 14px; color: var(--text-2); margin-top: 4px; }
+
+  .steps { display: flex; margin-bottom: 2rem; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .step { flex: 1; padding: 10px 8px; text-align: center; font-size: 12px; color: var(--text-3); background: var(--bg); border-right: 1px solid var(--border); font-family: 'DM Mono', monospace; transition: background 0.2s, color 0.2s; }
+  .step:last-child { border-right: none; }
+  .step.active { background: var(--surface); color: var(--text); }
+  .step.done { background: var(--green-light); color: var(--green); }
+  .step-num { display: block; font-size: 9px; margin-bottom: 2px; opacity: 0.6; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
+  .card-title { font-size: 14px; font-weight: 500; margin-bottom: 0.25rem; }
+  .card-sub { font-size: 13px; color: var(--text-2); margin-bottom: 1rem; }
+
+  .upload-zone { border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 3rem 2rem; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg); }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--blue); background: var(--blue-light); }
+  .upload-icon { font-size: 32px; margin-bottom: 0.75rem; }
+  .upload-label { font-weight: 500; margin-bottom: 0.25rem; }
+  .upload-sub { font-size: 13px; color: var(--text-2); }
+  #fileInput { display: none; }
+  #uploadStatus { font-size: 13px; color: var(--green); margin-top: 0.75rem; font-family: 'DM Mono', monospace; }
+
+  .samples { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0.75rem; }
+
+  .table-wrap { overflow-x: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: var(--bg); padding: 8px 10px; text-align: left; font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; font-family: 'DM Mono', monospace; font-size: 11px; }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--text-2); font-family: 'DM Mono', monospace; font-size: 11px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); color: var(--text); }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+  .stat { background: var(--bg); border-radius: var(--radius-sm); padding: 0.75rem 1rem; }
+  .stat-label { font-size: 11px; color: var(--text-2); margin-bottom: 4px; }
+  .stat-val { font-size: 22px; font-weight: 500; font-family: 'DM Mono', monospace; }
+
+  .col-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 8px; margin-top: 0.75rem; }
+  .col-pill { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; transition: all 0.15s; background: var(--surface); }
+  .col-pill:hover { border-color: var(--border-strong); }
+  .col-pill.selected-target { border-color: var(--blue); background: var(--blue-light); color: var(--blue); font-weight: 500; }
+  .col-pill.selected-feature { border-color: var(--green); background: var(--green-light); color: var(--green); }
+  .col-pill.excluded { opacity: 0.35; }
+  .col-type { font-size: 9px; padding: 2px 5px; border-radius: 99px; font-weight: 500; font-family: 'DM Mono', monospace; }
+  .type-num { background: var(--blue-light); color: var(--blue); }
+  .type-cat { background: var(--amber-light); color: var(--amber); }
+
+  .model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 0.75rem; }
+  .model-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1rem; cursor: pointer; transition: all 0.15s; }
+  .model-card:hover { border-color: var(--border-strong); background: var(--bg); }
+  .model-card.selected { border: 2px solid var(--blue); background: var(--blue-light); }
+  .model-name { font-weight: 500; font-size: 14px; margin-bottom: 4px; }
+  .model-desc { font-size: 12px; color: var(--text-2); }
+  .model-tag { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 99px; margin-top: 6px; background: var(--bg); color: var(--text-2); font-family: 'DM Mono', monospace; }
+  .model-card.selected .model-tag { background: #b5d4f4; color: #0c447c; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 1rem; }
+  label { font-size: 12px; color: var(--text-2); display: block; margin-bottom: 4px; }
+  select, input[type=number] { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: 'DM Sans', sans-serif; background: var(--surface); color: var(--text); }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: all 0.15s; background: transparent; color: var(--text); }
+  .btn:hover { background: var(--bg); border-color: var(--border-strong); }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--text); color: var(--surface); border-color: transparent; }
+  .btn-primary:hover { opacity: 0.85; background: var(--text); }
+  .btn-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 1.25rem; }
+
+  .progress-bar { height: 4px; background: var(--bg); border-radius: 99px; overflow: hidden; margin: 0.5rem 0; }
+  .progress-fill { height: 100%; background: var(--blue); border-radius: 99px; transition: width 0.4s ease; }
+  .log-box { background: var(--bg); border-radius: var(--radius-sm); padding: 1rem; font-family: 'DM Mono', monospace; font-size: 12px; max-height: 220px; overflow-y: auto; line-height: 2; border: 1px solid var(--border); }
+  .log-line { color: var(--text-2); }
+  .log-line.success { color: var(--green); }
+  .log-line.info { color: var(--blue); }
+  .log-line.error { color: #a32d2d; }
+
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 1rem 0; }
+  .metric { background: var(--bg); border-radius: var(--radius-sm); padding: 1rem; text-align: center; }
+  .metric-val { font-size: 26px; font-weight: 500; font-family: 'DM Mono', monospace; }
+  .metric-name { font-size: 11px; color: var(--text-2); margin-top: 4px; }
+
+  .feat-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .feat-bar-label { font-size: 12px; color: var(--text-2); width: 130px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'DM Mono', monospace; }
+  .feat-bar-track { flex: 1; background: var(--bg); border-radius: 99px; height: 6px; overflow: hidden; }
+  .feat-bar-fill { height: 100%; background: var(--blue); border-radius: 99px; }
+  .feat-bar-val { font-size: 11px; color: var(--text-2); width: 40px; text-align: right; font-family: 'DM Mono', monospace; }
+
+  .badge { display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 99px; font-weight: 500; font-family: 'DM Mono', monospace; }
+  .badge-blue { background: var(--blue-light); color: var(--blue); }
+  .badge-green { background: var(--green-light); color: var(--green); }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+  .results-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .ai-box { font-size: 14px; line-height: 1.8; color: var(--text-2); }
+  .ai-box p { color: var(--text); }
+  .task-label { margin-bottom: 0.5rem; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Auto<span>ML</span> Trainer</h1>
+    <p>Upload any CSV dataset and train a real scikit-learn model via your local FastAPI backend.</p>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step-tab-1"><span class="step-num">01</span>Upload</div>
+    <div class="step" id="step-tab-2"><span class="step-num">02</span>Explore</div>
+    <div class="step" id="step-tab-3"><span class="step-num">03</span>Configure</div>
+    <div class="step" id="step-tab-4"><span class="step-num">04</span>Train</div>
+    <div class="step" id="step-tab-5"><span class="step-num">05</span>Results</div>
+  </div>
+
+  <!-- Page 1: Upload -->
+  <div id="page-1">
+    <div class="card">
+      <div class="card-title">Upload your dataset</div>
+      <div class="card-sub">Supports CSV files. Connects to your FastAPI backend at http://localhost:8000.</div>
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-icon">📂</div>
+        <div class="upload-label">Drop a CSV file here, or click to browse</div>
+        <div class="upload-sub">Any tabular dataset — classification or regression</div>
+        <input type="file" id="fileInput" accept=".csv">
+      </div>
+      <div id="uploadStatus"></div>
+    </div>
+    <div class="card" style="background:var(--bg); border-style:dashed;">
+      <div class="card-title" style="font-size:13px;">Try a sample dataset</div>
+      <div class="samples">
+        <button class="btn" onclick="loadSample('iris')">Iris flowers (classification)</button>
+        <button class="btn" onclick="loadSample('housing')">House prices (regression)</button>
+        <button class="btn" onclick="loadSample('titanic')">Titanic survival (classification)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 2: Explore -->
+  <div id="page-2" style="display:none;">
+    <div class="card">
+      <div class="card-title" id="datasetNameLabel">Dataset</div>
+      <div class="stats-grid" id="statsGrid"></div>
+      <div class="card-sub" style="margin-top:0.75rem; margin-bottom:0.5rem;">Preview (first 5 rows)</div>
+      <div class="table-wrap" id="previewTable"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Column summary</div>
+      <div id="colSummary"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="goStep(1)">← Back</button>
+      <button class="btn btn-primary" onclick="goStep(3)">Configure model →</button>
+    </div>
+  </div>
+
+  <!-- Page 3: Configure -->
+  <div id="page-3" style="display:none;">
+    <div class="card">
+      <div class="card-title">Select target column</div>
+      <div class="card-sub">Which column do you want to predict?</div>
+      <div class="col-grid" id="targetGrid"></div>
+    </div>
+    <div class="card" id="featureCard" style="display:none;">
+      <div class="card-title">Select feature columns</div>
+      <div class="card-sub">Choose input columns. Click to toggle on/off.</div>
+      <div class="col-grid" id="featureGrid"></div>
+    </div>
+    <div class="card" id="modelCard" style="display:none;">
+      <div class="card-title">Choose algorithm</div>
+      <div class="task-label" id="taskTypeLabel"></div>
+      <div class="model-grid" id="modelGrid"></div>
+      <div class="form-row">
+        <div><label>Test set size (%)</label><input type="number" id="testSize" value="20" min="10" max="40"></div>
+        <div><label>Random seed</label><input type="number" id="randomSeed" value="42"></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="goStep(2)">← Back</button>
+      <button class="btn btn-primary" id="trainBtn" style="display:none;" onclick="goStep(4)">Train model →</button>
+    </div>
+  </div>
+
+  <!-- Page 4: Train -->
+  <div id="page-4" style="display:none;">
+    <div class="card">
+      <div class="card-title">Training in progress</div>
+      <div style="margin:1rem 0;">
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-2); margin-bottom:4px;">
+          <span id="progressLabel">Initializing...</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+      <div class="log-box" id="logBox"></div>
+    </div>
+  </div>
+
+  <!-- Page 5: Results -->
+  <div id="page-5" style="display:none;">
+    <div class="card">
+      <div class="results-header">
+        <div>
+          <div class="card-title" id="resultsTitle">Model results</div>
+          <div id="resultsBadges" style="margin-top:6px;"></div>
+        </div>
+        <button class="btn btn-primary" onclick="downloadReport()">↓ Download report</button>
+      </div>
+      <hr>
+      <div class="card-sub">Performance metrics</div>
+      <div class="metric-grid" id="metricsGrid"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Feature importance</div>
+      <div class="card-sub">Relative contribution of each feature to predictions</div>
+      <div id="featureImportance"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">AI interpretation</div>
+      <div id="aiInterpret" class="ai-box"><div class="spinner"></div></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="resetAll()">Start over</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let uploadedFile = null;
+let csvData = [], headers = [], colTypes = {};
+let targetCol = null, featureCols = [], selectedModel = null;
+let taskType = null, trainingResults = null;
+
+const SAMPLES = {
+  iris: {
+    name: 'Iris Flowers',
+    headers: ['sepal_length','sepal_width','petal_length','petal_width','species'],
+    rows: [[5.1,3.5,1.4,0.2,'setosa'],[4.9,3.0,1.4,0.2,'setosa'],[7.0,3.2,4.7,1.4,'versicolor'],[6.4,3.2,4.5,1.5,'versicolor'],[6.3,3.3,6.0,2.5,'virginica'],[5.8,2.7,5.1,1.9,'virginica'],[5.7,4.4,1.5,0.4,'setosa'],[6.7,3.1,4.7,1.5,'versicolor'],[6.3,2.5,5.0,1.9,'virginica'],[5.0,3.4,1.5,0.2,'setosa'],[6.1,2.9,4.7,1.4,'versicolor'],[6.4,2.7,5.3,1.9,'virginica'],[4.6,3.1,1.5,0.2,'setosa'],[6.9,3.1,4.9,1.5,'versicolor'],[6.2,3.4,5.4,2.3,'virginica'],[5.4,3.9,1.7,0.4,'setosa'],[5.5,2.3,4.0,1.3,'versicolor'],[5.9,3.0,5.1,1.8,'virginica']]
+  },
+  housing: {
+    name: 'House Prices',
+    headers: ['sqft','bedrooms','bathrooms','age','garage','price'],
+    rows: [[1500,3,2,15,1,285000],[2200,4,3,8,2,420000],[980,2,1,30,0,175000],[3100,5,4,3,3,610000],[1750,3,2,12,1,340000],[2800,4,3,5,2,530000],[1200,2,2,22,1,215000],[2600,4,2,10,2,480000],[900,2,1,40,0,155000],[3500,5,4,1,3,720000],[1600,3,2,18,1,295000],[2100,3,3,6,2,410000],[1050,2,1,35,0,170000],[2900,4,3,4,2,565000],[1400,3,2,20,1,260000],[2400,4,3,7,2,455000],[1100,2,2,28,0,190000],[3200,5,4,2,3,640000]]
+  },
+  titanic: {
+    name: 'Titanic Survival',
+    headers: ['pclass','age','fare','sex_male','siblings','survived'],
+    rows: [[1,29,211.3,0,0,1],[1,2,151.6,1,1,0],[3,26,7.9,1,0,0],[1,35,52.0,0,0,1],[3,27,8.5,1,0,0],[2,14,30.1,0,1,1],[3,31,7.3,1,0,0],[1,22,61.2,0,0,1],[3,18,8.1,1,0,0],[2,45,26.0,0,0,1],[3,24,7.6,1,0,0],[1,58,146.5,0,0,1],[3,30,7.9,1,2,0],[1,40,153.5,0,1,0],[2,33,26.0,0,0,1],[3,22,8.1,1,0,0],[1,19,91.1,0,0,1],[3,28,7.7,1,0,0]]
+  }
+};
+
+function csvFromSample(s) {
+  return [s.headers.join(','), ...s.rows.map(r => r.join(','))].join('\n');
+}
+
+function loadSample(key) {
+  const s = SAMPLES[key];
+  const blob = new Blob([csvFromSample(s)], { type: 'text/csv' });
+  uploadedFile = new File([blob], key + '.csv', { type: 'text/csv' });
+  uploadAndProceed(uploadedFile, s.name);
+}
+
+document.getElementById('uploadZone').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  uploadedFile = file;
+  uploadAndProceed(file, file.name.replace('.csv', ''));
+});
+['dragover','dragleave','drop'].forEach(ev => {
+  document.getElementById('uploadZone').addEventListener(ev, e => {
+    e.preventDefault();
+    if (ev === 'dragover') e.currentTarget.classList.add('dragover');
+    else e.currentTarget.classList.remove('dragover');
+    if (ev === 'drop') {
+      const file = e.dataTransfer.files[0];
+      if (file) { uploadedFile = file; uploadAndProceed(file, file.name.replace('.csv','')); }
+    }
+  });
+});
+
+async function uploadAndProceed(file, name) {
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.style.color = 'var(--text-2)';
+  statusEl.textContent = 'Connecting to API...';
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API}/upload`, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(`API returned ${res.status}`);
+    const data = await res.json();
+    headers = Object.keys(data.columns);
+    colTypes = data.columns;
+    const text = await file.text();
+    csvData = text.trim().split('\n').slice(1).map(line => line.split(',').map(v => v.trim().replace(/^"|"$/g,'')));
+    document.getElementById('datasetNameLabel').textContent = name;
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = `✓ ${data.rows} rows · ${headers.length} columns`;
+    buildStep2(data);
+    goStep(2);
+  } catch(err) {
+    statusEl.style.color = '#a32d2d';
+    statusEl.textContent = `Error: ${err.message} — is your backend running at ${API}?`;
+  }
+}
+
+function buildStep2(data) {
+  const catCount = Object.values(colTypes).filter(t => t === 'categorical').length;
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat"><div class="stat-label">Rows</div><div class="stat-val">${data.rows}</div></div>
+    <div class="stat"><div class="stat-label">Columns</div><div class="stat-val">${headers.length}</div></div>
+    <div class="stat"><div class="stat-label">Numeric</div><div class="stat-val">${headers.length - catCount}</div></div>
+    <div class="stat"><div class="stat-label">Categorical</div><div class="stat-val">${catCount}</div></div>`;
+  let t = '<table><thead><tr>' + headers.map(h=>`<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+  csvData.slice(0,5).forEach(row => { t += '<tr>' + row.map(v=>`<td>${v}</td>`).join('') + '</tr>'; });
+  document.getElementById('previewTable').innerHTML = t + '</tbody></table>';
+  let s = '<div style="overflow-x:auto;"><table style="width:100%;"><thead><tr><th>Column</th><th>Type</th><th>Sample values</th></tr></thead><tbody>';
+  headers.forEach((h,i) => {
+    const sample = [...new Set(csvData.map(r=>r[i]))].slice(0,3).join(', ');
+    const tc = colTypes[h]==='numeric'?'type-num':'type-cat';
+    s += `<tr><td style="font-weight:500;">${h}</td><td><span class="col-type ${tc}">${colTypes[h]}</span></td><td>${sample}…</td></tr>`;
+  });
+  document.getElementById('colSummary').innerHTML = s + '</tbody></table></div>';
+}
+
+function buildStep3() {
+  targetCol = null; featureCols = []; selectedModel = null;
+  ['featureCard','modelCard'].forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById('trainBtn').style.display = 'none';
+  document.getElementById('targetGrid').innerHTML = headers.map(h => {
+    const tc = colTypes[h]==='numeric'?'type-num':'type-cat';
+    return `<div class="col-pill" onclick="selectTarget('${h}')" id="target-${h}"><span class="col-type ${tc}">${colTypes[h][0].toUpperCase()}</span><span>${h}</span></div>`;
+  }).join('');
+}
+
+function selectTarget(col) {
+  targetCol = col;
+  document.querySelectorAll('#targetGrid .col-pill').forEach(p => p.classList.remove('selected-target'));
+  document.getElementById('target-'+col).classList.add('selected-target');
+  featureCols = headers.filter(h => h !== col);
+  taskType = colTypes[col] === 'categorical' ? 'classification' : 'regression';
+  document.getElementById('featureGrid').innerHTML = featureCols.map(h => {
+    const tc = colTypes[h]==='numeric'?'type-num':'type-cat';
+    return `<div class="col-pill selected-feature" onclick="toggleFeature('${h}')" id="feat-${h}"><span class="col-type ${tc}">${colTypes[h][0].toUpperCase()}</span><span>${h}</span></div>`;
+  }).join('');
+  document.getElementById('featureCard').style.display = 'block';
+  buildModelOptions();
+  document.getElementById('modelCard').style.display = 'block';
+}
+
+function toggleFeature(col) {
+  const el = document.getElementById('feat-'+col);
+  if (el.classList.contains('selected-feature')) {
+    el.classList.remove('selected-feature'); el.classList.add('excluded');
+    featureCols = featureCols.filter(c => c !== col);
+  } else {
+    el.classList.remove('excluded'); el.classList.add('selected-feature');
+    featureCols.push(col);
+  }
+}
+
+function buildModelOptions() {
+  const models = taskType === 'classification' ? [
+    { id:'classification', name:'Logistic Regression', desc:'Linear boundary. Fast and interpretable.', tag:'Linear' },
+    { id:'classification_knn', name:'K-Nearest Neighbors', desc:'Majority vote from k nearest samples.', tag:'Instance-based' },
+    { id:'classification_dt', name:'Decision Tree', desc:'Recursive feature splits. Interpretable.', tag:'Tree' },
+    { id:'classification_rf', name:'Random Forest', desc:'Ensemble of trees. Reduces overfitting.', tag:'Ensemble' },
+  ] : [
+    { id:'regression', name:'Linear Regression', desc:'Best for linear relationships.', tag:'Linear' },
+    { id:'regression_ridge', name:'Ridge Regression', desc:'L2-regularized. Handles correlated features.', tag:'Regularized' },
+    { id:'regression_dt', name:'Decision Tree', desc:'Captures non-linearity via splits.', tag:'Tree' },
+    { id:'regression_rf', name:'Random Forest', desc:'Averaged tree ensemble. Robust to outliers.', tag:'Ensemble' },
+  ];
+  document.getElementById('taskTypeLabel').innerHTML = `Task detected: <span class="badge badge-blue">${taskType}</span>`;
+  document.getElementById('modelGrid').innerHTML = models.map(m =>
+    `<div class="model-card" onclick="selectModel('${m.id}')" id="model-${m.id}"><div class="model-name">${m.name}</div><div class="model-desc">${m.desc}</div><span class="model-tag">${m.tag}</span></div>`
+  ).join('');
+}
+
+function selectModel(id) {
+  selectedModel = id;
+  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('model-'+id).classList.add('selected');
+  document.getElementById('trainBtn').style.display = 'inline-flex';
+}
+
+async function runTraining() {
+  const logBox = document.getElementById('logBox');
+  const fill = document.getElementById('progressFill');
+  logBox.innerHTML = '';
+  const log = (msg, cls='') => { logBox.innerHTML += `<div class="log-line ${cls}">${msg}</div>`; logBox.scrollTop = logBox.scrollHeight; };
+  const setP = (p, lbl) => { fill.style.width = p+'%'; document.getElementById('progressPct').textContent = p+'%'; document.getElementById('progressLabel').textContent = lbl; };
+
+  log('Preparing request...', 'info');
+  setP(10, 'Sending to API');
+  await sleep(300);
+
+  const testSize = parseInt(document.getElementById('testSize').value) / 100;
+  const randomSeed = parseInt(document.getElementById('randomSeed').value);
+  const config = JSON.stringify({ target: targetCol, features: featureCols, model_type: selectedModel, test_size: testSize, random_seed: randomSeed });
+
+  log(`Target: ${targetCol}`);
+  log(`Features: ${featureCols.join(', ')}`);
+  log(`Model: ${selectedModel} | test_size: ${testSize} | seed: ${randomSeed}`);
+  setP(25, 'Training model');
+
+  try {
+    const formData = new FormData();
+    formData.append('file', uploadedFile);
+    const res = await fetch(`${API}/train?config=${encodeURIComponent(config)}`, { method: 'POST', body: formData });
+    setP(80, 'Processing results');
+    await sleep(300);
+    if (!res.ok) { const err = await res.text(); log(`API error ${res.status}: ${err}`, 'error'); setP(0,'Failed'); return; }
+    const data = await res.json();
+    trainingResults = { ...data, taskType: selectedModel.startsWith('regression') ? 'regression' : 'classification' };
+    log('Training complete!', 'success');
+    setP(100, 'Done');
+    await sleep(500);
+    goStep(5);
+  } catch(err) {
+    log(`Failed to connect: ${err.message}`, 'error');
+    log(`Is your backend running at ${API}?`, 'error');
+    setP(0, 'Failed');
+  }
+}
+
+function buildResults() {
+  const r = trainingResults;
+  document.getElementById('resultsTitle').textContent = `${targetCol} — prediction model`;
+  document.getElementById('resultsBadges').innerHTML = `<span class="badge badge-blue">${r.taskType}</span><span class="badge badge-green" style="margin-left:6px;">${featureCols.length} features</span>`;
+  const mg = document.getElementById('metricsGrid');
+  if (r.taskType === 'classification') {
+    mg.innerHTML = `
+      <div class="metric"><div class="metric-val">${r.accuracy !== undefined ? (r.accuracy*100).toFixed(1)+'%' : 'N/A'}</div><div class="metric-name">Accuracy</div></div>
+      <div class="metric"><div class="metric-val">${r.f1_score !== undefined ? (r.f1_score*100).toFixed(1)+'%' : 'N/A'}</div><div class="metric-name">F1 Score</div></div>`;
+  } else {
+    mg.innerHTML = `
+      <div class="metric"><div class="metric-val">${r.r2_score !== undefined ? (r.r2_score*100).toFixed(1)+'%' : 'N/A'}</div><div class="metric-name">R² Score</div></div>
+      <div class="metric"><div class="metric-val">${r.mae !== undefined ? r.mae.toLocaleString('en',{maximumFractionDigits:0}) : 'N/A'}</div><div class="metric-name">MAE</div></div>
+      <div class="metric"><div class="metric-val">${r.mse !== undefined ? Math.sqrt(r.mse).toLocaleString('en',{maximumFractionDigits:0}) : 'N/A'}</div><div class="metric-name">RMSE</div></div>`;
+  }
+  const sorted = Object.entries(r.feature_importance || {}).sort((a,b) => b[1]-a[1]);
+  const maxVal = sorted.length ? sorted[0][1] : 1;
+  document.getElementById('featureImportance').innerHTML = sorted.length
+    ? sorted.map(([feat, val]) => `<div class="feat-bar-row"><div class="feat-bar-label" title="${feat}">${feat}</div><div class="feat-bar-track"><div class="feat-bar-fill" style="width:${Math.round(val/maxVal*100)}%"></div></div><div class="feat-bar-val">${(val/maxVal*100).toFixed(0)}%</div></div>`).join('')
+    : '<p style="color:var(--text-2);font-size:13px;">Not available for this model.</p>';
+  getAIInterpretation(r);
+}
+
+async function getAIInterpretation(r) {
+  const topFeatures = Object.entries(r.feature_importance || {}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
+  const metricsStr = r.taskType === 'classification'
+    ? `Accuracy: ${(r.accuracy*100).toFixed(1)}%, F1: ${(r.f1_score*100).toFixed(1)}%`
+    : `R²: ${(r.r2_score*100).toFixed(1)}%, MAE: ${r.mae?.toLocaleString()}, RMSE: ${Math.sqrt(r.mse||0).toLocaleString('en',{maximumFractionDigits:0})}`;
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: `You are a data science assistant. Interpret these ML results in 3-4 concise sentences:\n- Task: ${r.taskType}\n- Model: ${selectedModel}\n- Target: ${targetCol}\n- Features: ${featureCols.join(', ')}\n- Performance: ${metricsStr}\n- Top features: ${topFeatures}\nExplain what the results mean, if performance is good, and one actionable recommendation. Be direct.` }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.find(b => b.type === 'text')?.text || 'No interpretation available.';
+    document.getElementById('aiInterpret').innerHTML = `<p>${text.replace(/\n/g,'<br>')}</p>`;
+  } catch(e) {
+    document.getElementById('aiInterpret').innerHTML = `<p style="color:var(--text-2);">AI interpretation unavailable.</p>`;
+  }
+}
+
+function downloadReport() {
+  const r = trainingResults; if (!r) return;
+  const lines = ['AutoML Training Report','======================',`Target: ${targetCol}`,`Task: ${r.taskType}`,`Model: ${selectedModel}`,`Features: ${featureCols.join(', ')}`,`Rows: ${csvData.length}`,'','Performance','-----------'];
+  if (r.taskType === 'classification') { lines.push(`Accuracy: ${(r.accuracy*100).toFixed(1)}%`,`F1: ${(r.f1_score*100).toFixed(1)}%`); }
+  else { lines.push(`R²: ${(r.r2_score*100).toFixed(1)}%`,`MAE: ${r.mae?.toLocaleString()}`,`RMSE: ${Math.sqrt(r.mse||0).toLocaleString('en',{maximumFractionDigits:0})}`); }
+  lines.push('','Feature Importance','------------------');
+  Object.entries(r.feature_importance||{}).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>lines.push(`${k}: ${v.toFixed(4)}`));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/plain'}));
+  a.download = `automl_report_${targetCol}.txt`; a.click();
+}
+
+function resetAll() {
+  uploadedFile = null; csvData = []; headers = []; colTypes = {};
+  targetCol = null; featureCols = []; selectedModel = null; taskType = null; trainingResults = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('uploadStatus').textContent = '';
+  document.getElementById('logBox').innerHTML = '';
+  goStep(1);
+}
+
+function goStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById('page-'+i).style.display = i === n ? '' : 'none';
+    const tab = document.getElementById('step-tab-'+i);
+    tab.classList.remove('active','done');
+    if (i < n) tab.classList.add('done');
+    else if (i === n) tab.classList.add('active');
+  }
+  if (n === 3) buildStep3();
+  if (n === 4) runTraining();
+  if (n === 5) buildResults();
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>
