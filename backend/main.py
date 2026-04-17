@@ -12,6 +12,8 @@ import pandas as pd
 import io
 import numpy as np
 import json
+import os
+import httpx
 
 app = FastAPI(title="AutoML API")
 
@@ -111,3 +113,43 @@ async def train_model(file: UploadFile = File(...), config: str = ""):
         mse = mean_squared_error(y_test, y_pred)
         return {"r2_score": r2, "mae": mae, "mse": mse, "feature_importance": importance}
     
+class InterpretRequest(BaseModel):
+    task_type: str
+    model_type: str
+    target: str
+    features: list[str]
+    metrics: dict
+    feature_importance: dict
+
+@app.post("/interpret")
+async def interpret_results(req: InterpretRequest):
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API key not configured")
+
+    top_features = sorted(req.feature_importance.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_str = ', '.join([k for k, v in top_features])
+    metrics_str = ', '.join([f"{k}: {v}" for k, v in req.metrics.items()])
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-sonnet-4-20250514",
+                "max_tokens": 1000,
+                "messages": [{
+                    "role": "user",
+                    "content": f"You are a data science assistant. Interpret these ML results in 3-4 concise sentences:\n- Task: {req.task_type}\n- Model: {req.model_type}\n- Target: {req.target}\n- Features: {', '.join(req.features)}\n- Performance: {metrics_str}\n- Top features: {top_str}\nExplain what the results mean, if performance is good, and one actionable recommendation. Be direct."
+                }]
+            },
+            timeout=30.0
+        )
+    
+    data = response.json()
+    text = data["content"][0]["text"]
+    return {"interpretation": text}

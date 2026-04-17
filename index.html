@@ -480,29 +480,6 @@ function buildResults() {
   getAIInterpretation(r);
 }
 
-async function getAIInterpretation(r) {
-  const topFeatures = Object.entries(r.feature_importance || {}).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k])=>k).join(', ');
-  const metricsStr = r.taskType === 'classification'
-    ? `Accuracy: ${(r.accuracy*100).toFixed(1)}%, F1: ${(r.f1_score*100).toFixed(1)}%`
-    : `R²: ${(r.r2_score*100).toFixed(1)}%, MAE: ${r.mae?.toLocaleString()}, RMSE: ${Math.sqrt(r.mse||0).toLocaleString('en',{maximumFractionDigits:0})}`;
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: `You are a data science assistant. Interpret these ML results in 3-4 concise sentences:\n- Task: ${r.taskType}\n- Model: ${selectedModel}\n- Target: ${targetCol}\n- Features: ${featureCols.join(', ')}\n- Performance: ${metricsStr}\n- Top features: ${topFeatures}\nExplain what the results mean, if performance is good, and one actionable recommendation. Be direct.` }]
-      })
-    });
-    const data = await res.json();
-    const text = data.content?.find(b => b.type === 'text')?.text || 'No interpretation available.';
-    document.getElementById('aiInterpret').innerHTML = `<p>${text.replace(/\n/g,'<br>')}</p>`;
-  } catch(e) {
-    document.getElementById('aiInterpret').innerHTML = `<p style="color:var(--text-2);">AI interpretation unavailable.</p>`;
-  }
-}
-
 function downloadReport() {
   const r = trainingResults; if (!r) return;
   const lines = ['AutoML Training Report','======================',`Target: ${targetCol}`,`Task: ${r.taskType}`,`Model: ${selectedModel}`,`Features: ${featureCols.join(', ')}`,`Rows: ${csvData.length}`,'','Performance','-----------'];
@@ -535,6 +512,32 @@ function goStep(n) {
   if (n === 3) buildStep3();
   if (n === 4) runTraining();
   if (n === 5) buildResults();
+}
+
+async function getAIInterpretation(r) {
+  try {
+    const metrics = r.taskType === 'classification'
+      ? { accuracy: r.accuracy?.toFixed(3), f1_score: r.f1_score?.toFixed(3) }
+      : { r2_score: r.r2_score?.toFixed(3), mae: r.mae?.toFixed(0), rmse: Math.sqrt(r.mse||0).toFixed(0) };
+
+    const res = await fetch(`${API}/interpret`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task_type: r.taskType,
+        model_type: selectedModel,
+        target: targetCol,
+        features: featureCols,
+        metrics: metrics,
+        feature_importance: r.feature_importance || {}
+      })
+    });
+
+    const data = await res.json();
+    document.getElementById('aiInterpret').innerHTML = `<p>${data.interpretation.replace(/\n/g,'<br>')}</p>`;
+  } catch(e) {
+    document.getElementById('aiInterpret').innerHTML = `<p style="color:var(--text-2);">AI interpretation unavailable.</p>`;
+  }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
