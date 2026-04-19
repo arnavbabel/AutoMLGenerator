@@ -58,6 +58,9 @@ async def train_model(file: UploadFile = File(...), config: str = ""):
     contents = await file.read()
     df = pd.read_csv(io.BytesIO(contents))
 
+    if len(df) > 5000:
+        raise HTTPException(status_code=400, detail=f"Dataset too large: {len(df)} rows. Maximum allowed is 5,000 rows.")
+
     config_data = TrainRequest(**json.loads(config))
 
     X = df[config_data.features]

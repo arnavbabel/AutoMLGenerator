@@ -153,7 +153,7 @@
       <div class="upload-zone" id="uploadZone">
         <div class="upload-icon">📂</div>
         <div class="upload-label">Drop a CSV file here, or click to browse</div>
-        <div class="upload-sub">Any tabular dataset — classification or regression</div>
+        <div class="upload-sub">Any tabular dataset — classification or regression. Max 5,000 rows.</div>
         <input type="file" id="fileInput" accept=".csv">
       </div>
       <div id="uploadStatus"></div>
@@ -339,11 +339,20 @@ async function uploadAndProceed(file, name) {
 
 function buildStep2(data) {
   const catCount = Object.values(colTypes).filter(t => t === 'categorical').length;
+  const rowWarning = data.rows > 5000 
+  ? `<div style="margin-top:0.75rem; padding:0.75rem 1rem; background:var(--amber-light); color:var(--amber); border-radius:var(--radius-sm); font-size:13px;">
+    ⚠ Dataset has ${data.rows.toLocaleString()} rows — maximum is 5,000. Training will be blocked. Consider trimming your dataset.
+    </div>` 
+  : '';
+
   document.getElementById('statsGrid').innerHTML = `
-    <div class="stat"><div class="stat-label">Rows</div><div class="stat-val">${data.rows}</div></div>
-    <div class="stat"><div class="stat-label">Columns</div><div class="stat-val">${headers.length}</div></div>
-    <div class="stat"><div class="stat-label">Numeric</div><div class="stat-val">${headers.length - catCount}</div></div>
-    <div class="stat"><div class="stat-label">Categorical</div><div class="stat-val">${catCount}</div></div>`;
+      <div class="stat"><div class="stat-label">Rows</div><div class="stat-val">${data.rows.toLocaleString()}</div></div>
+      <div class="stat"><div class="stat-label">Columns</div><div class="stat-val">${headers.length}</div></div>
+      <div class="stat"><div class="stat-label">Numeric</div><div class="stat-val">${headers.length - catCount}</div></div>
+      <div class="stat"><div class="stat-label">Categorical</div><div class="stat-val">${catCount}</div></div>`;
+
+  document.getElementById('statsGrid').insertAdjacentHTML('afterend', rowWarning);
+
   let t = '<table><thead><tr>' + headers.map(h=>`<th>${h}</th>`).join('') + '</tr></thead><tbody>';
   csvData.slice(0,5).forEach(row => { t += '<tr>' + row.map(v=>`<td>${v}</td>`).join('') + '</tr>'; });
   document.getElementById('previewTable').innerHTML = t + '</tbody></table>';
