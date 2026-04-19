@@ -72,7 +72,7 @@ async def train_model(file: UploadFile = File(...), config: str = ""):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=config_data.test_size, random_state=config_data.random_seed)
 
     if config_data.model_type == "classification":
-        model = LogisticRegression() if len(np.unique(y)) == 2 else RandomForestClassifier()
+        model = LogisticRegression() if len(np.unique(y)) == 2 else RandomForestClassifier(n_estimators=50, max_depth=10, random_state=config_data.random_seed)
     elif config_data.model_type == "regression":
         model = LinearRegression()
     elif config_data.model_type == "regression_ridge":
@@ -80,7 +80,7 @@ async def train_model(file: UploadFile = File(...), config: str = ""):
     elif config_data.model_type == "regression_dt":
         model = DecisionTreeRegressor()
     elif config_data.model_type == "regression_rf":
-        model = RandomForestRegressor()
+        model = RandomForestRegressor(n_estimators=50, max_depth=10, random_state=config_data.random_seed)
     elif config_data.model_type == "classification":
         model = LogisticRegression()
     elif config_data.model_type == "classification_knn":
@@ -88,7 +88,7 @@ async def train_model(file: UploadFile = File(...), config: str = ""):
     elif config_data.model_type == "classification_dt":
         model = DecisionTreeClassifier()
     elif config_data.model_type == "classification_rf":
-        model = RandomForestClassifier()
+        model = RandomForestClassifier(n_estimators=50, max_depth=10, random_state=config_data.random_seed)
     else:
         raise HTTPException(status_code=400, detail="Invalid model type")
     
@@ -151,5 +151,7 @@ async def interpret_results(req: InterpretRequest):
         )
     
     data = response.json()
+    if "content" not in data:
+        raise HTTPException(status_code=500, detail=f"Anthropic API error: {data}")
     text = data["content"][0]["text"]
     return {"interpretation": text}
