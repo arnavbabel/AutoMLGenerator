@@ -84,8 +84,6 @@ async def train_model(file: UploadFile = File(...), config: str = ""):
         model = DecisionTreeRegressor()
     elif config_data.model_type == "regression_rf":
         model = RandomForestRegressor(n_estimators=50, max_depth=10, random_state=config_data.random_seed)
-    elif config_data.model_type == "classification":
-        model = LogisticRegression()
     elif config_data.model_type == "classification_knn":
         model = KNeighborsClassifier()
     elif config_data.model_type == "classification_dt":
@@ -106,7 +104,7 @@ async def train_model(file: UploadFile = File(...), config: str = ""):
 
     y_pred = model.predict(X_test)
 
-    if config_data.model_type == "classification":
+    if config_data.model_type in ["classification", "classification_knn", "classification_dt", "classification_rf"]:
         accuracy = accuracy_score(y_test, y_pred)
         f1 = f1_score(y_test, y_pred, average="weighted")
         return {"accuracy": accuracy, "f1_score": f1, "feature_importance": importance}
@@ -115,7 +113,7 @@ async def train_model(file: UploadFile = File(...), config: str = ""):
         mae = mean_absolute_error(y_test, y_pred)
         mse = mean_squared_error(y_test, y_pred)
         return {"r2_score": r2, "mae": mae, "mse": mse, "feature_importance": importance}
-    
+
 class InterpretRequest(BaseModel):
     task_type: str
     model_type: str
@@ -126,7 +124,7 @@ class InterpretRequest(BaseModel):
 
 @app.post("/interpret")
 async def interpret_results(req: InterpretRequest):
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="API key not configured")
 
@@ -136,14 +134,13 @@ async def interpret_results(req: InterpretRequest):
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "https://api.anthropic.com/v1/messages",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
             },
             json={
-                "model": "claude-sonnet-4-20250514",
+                "model": "llama-3.3-70b-versatile",
                 "max_tokens": 1000,
                 "messages": [{
                     "role": "user",
@@ -154,7 +151,7 @@ async def interpret_results(req: InterpretRequest):
         )
     
     data = response.json()
-    if "content" not in data:
-        raise HTTPException(status_code=500, detail=f"Anthropic API error: {data}")
-    text = data["content"][0]["text"]
+    if "choices" not in data:
+        raise HTTPException(status_code=500, detail=f"Groq API error: {data}")
+    text = data["choices"][0]["message"]["content"]
     return {"interpretation": text}
